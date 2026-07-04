@@ -1,8 +1,11 @@
 mod capture;
+mod config;
 mod live;
 mod overlay;
+mod permissions;
 mod timer;
 
+use config::{Config, ConfigState};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
@@ -63,17 +66,34 @@ fn skip_break(app: AppHandle) {
 
 #[tauri::command]
 fn set_durations(app: AppHandle, work_min: u32, break_min: u32) {
+    let work_min = work_min.clamp(1, 180);
+    let break_min = break_min.clamp(1, 60);
     {
         let state = app.state::<TimerState>();
         let mut t = state.lock().unwrap();
-        t.work_secs = work_min.clamp(1, 180) * 60;
-        t.break_secs = break_min.clamp(1, 60) * 60;
+        t.work_secs = work_min * 60;
+        t.break_secs = break_min * 60;
         if t.phase == Phase::Idle {
             t.total = t.work_secs;
             t.remaining = t.work_secs;
         }
     }
+    config::update(&app, |c| {
+        c.work_min = work_min;
+        c.break_min = break_min;
+    });
     timer::emit_state(&app);
+}
+
+#[tauri::command]
+fn get_config(state: tauri::State<'_, ConfigState>) -> Config {
+    state.0.lock().unwrap().clone()
+}
+
+/// Mark first-run onboarding complete so the app opens straight into the timer.
+#[tauri::command]
+fn complete_onboarding(app: AppHandle) {
+    config::update(&app, |c| c.onboarded = true);
 }
 
 /// Dev/demo helper: jump straight into a short break to admire the hole.
@@ -142,11 +162,24 @@ pub fn run() {
             skip_break,
             set_durations,
             test_break,
+            get_config,
+            complete_onboarding,
+            permissions::check_screen_permission,
+            permissions::request_screen_permission,
+            permissions::open_screen_settings,
+            permissions::restart_app,
             capture::get_screenshot,
             live::get_frame
         ])
         .setup(|app| {
-            app.manage(TimerState::new(Timer::default()));
+            let cfg = config::load(app.handle());
+            let mut timer = Timer::default();
+            timer.work_secs = cfg.work_min.clamp(1, 180) * 60;
+            timer.break_secs = cfg.break_min.clamp(1, 60) * 60;
+            timer.total = timer.work_secs;
+            timer.remaining = timer.work_secs;
+            app.manage(ConfigState(std::sync::Mutex::new(cfg)));
+            app.manage(TimerState::new(timer));
             app.manage(capture::Shots::default());
             app.manage(live::Live::default());
             setup_tray(app)?;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import Onboarding from "./Onboarding";
 import "./App.css";
 
 interface Snap {
@@ -10,6 +11,15 @@ interface Snap {
   running: boolean;
   work_secs: number;
   break_secs: number;
+}
+
+interface Config {
+  onboarded: boolean;
+  work_min: number;
+  break_min: number;
+  blocker_enabled: boolean;
+  blocked_sites: string[];
+  blocked_apps: string[];
 }
 
 const PHASE_LABEL: Record<Snap["phase"], string> = {
@@ -26,11 +36,22 @@ function App() {
   const [snap, setSnap] = useState<Snap | null>(null);
   const [workMin, setWorkMin] = useState(25);
   const [breakMin, setBreakMin] = useState(5);
+  // null = still loading; false = show onboarding; true = show timer.
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Browser demo mode (no Tauri IPC): show onboarding with defaults so the
+    // wizard and timer UI can be iterated on with `npm run dev`, mirroring the
+    // overlay's demo fallback.
+    if (!("__TAURI_INTERNALS__" in window)) {
+      setOnboarded(false);
+      return;
+    }
     let unlisten: (() => void) | undefined;
     void (async () => {
       unlisten = await listen<Snap>("timer-state", (e) => setSnap(e.payload));
+      const cfg = await invoke<Config>("get_config");
+      setOnboarded(cfg.onboarded);
       const s = await invoke<Snap>("get_state");
       setSnap(s);
       setWorkMin(Math.round(s.work_secs / 60));
@@ -38,6 +59,25 @@ function App() {
     })();
     return () => unlisten?.();
   }, []);
+
+  if (onboarded === null) return null; // brief config load
+  if (!onboarded) {
+    return (
+      <Onboarding
+        workMin={workMin}
+        breakMin={breakMin}
+        onDone={() => {
+          void (async () => {
+            const s = await invoke<Snap>("get_state");
+            setSnap(s);
+            setWorkMin(Math.round(s.work_secs / 60));
+            setBreakMin(Math.round(s.break_secs / 60));
+            setOnboarded(true);
+          })();
+        }}
+      />
+    );
+  }
 
   const applyDurations = (w: number, b: number) => {
     void invoke("set_durations", { workMin: w, breakMin: b });
@@ -118,6 +158,9 @@ function App() {
       <footer>
         <button className="ghost" onClick={() => void invoke("test_break", { secs: 20 })}>
           ☄ preview the black hole (20s)
+        </button>
+        <button className="ghost" onClick={() => setOnboarded(false)}>
+          ⚙ setup &amp; permissions
         </button>
       </footer>
     </main>
