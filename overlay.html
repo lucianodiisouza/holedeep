@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>holedeep break</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        cursor: none;
+        user-select: none;
+      }
+      #glcanvas {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        display: block;
+      }
+      #hud {
+        position: fixed;
+        left: 50%;
+        bottom: 5vh;
+        transform: translateX(-50%);
+        text-align: center;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        color: #e8e4d8;
+        text-shadow: 0 0 18px rgba(255, 190, 90, 0.55), 0 2px 10px rgba(0, 0, 0, 0.9);
+        pointer-events: none;
+      }
+      #countdown {
+        font-size: clamp(42px, 6vw, 96px);
+        font-weight: 600;
+        letter-spacing: 0.06em;
+      }
+      #hint {
+        margin-top: 8px;
+        font-size: 14px;
+        opacity: 0.65;
+      }
+      kbd {
+        border: 1px solid rgba(232, 228, 216, 0.5);
+        border-radius: 4px;
+        padding: 0 5px;
+        font-family: inherit;
+      }
+      #skipbar {
+        margin: 10px auto 0;
+        width: 180px;
+        height: 3px;
+        border-radius: 2px;
+        background: rgba(232, 228, 216, 0.15);
+        overflow: hidden;
+      }
+      #skipfill {
+        width: 0;
+        height: 100%;
+        background: #ffbe5a;
+        transition: width 80ms linear;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="glcanvas"></canvas>
+    <div id="hud">
+      <div id="countdown">05:00</div>
+      <div id="hint">step away — hold <kbd>esc</kbd> to skip the break</div>
+      <div id="skipbar"><div id="skipfill"></div></div>
+    </div>
+    <script type="module" src="/src/overlay/main.ts"></script>
+  </body>
+</html>
