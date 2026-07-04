@@ -1,3 +1,4 @@
+mod blocker;
 mod capture;
 mod config;
 mod live;
@@ -5,6 +6,7 @@ mod overlay;
 mod permissions;
 mod timer;
 
+use blocker::Blocker;
 use config::{Config, ConfigState};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -18,15 +20,20 @@ fn get_state(state: tauri::State<'_, TimerState>) -> TimerSnapshot {
 
 #[tauri::command]
 fn start_timer(app: AppHandle) {
-    {
+    let entered_work = {
         let state = app.state::<TimerState>();
         let mut t = state.lock().unwrap();
-        if t.phase == Phase::Idle {
+        let entered_work = t.phase == Phase::Idle;
+        if entered_work {
             t.phase = Phase::Work;
             t.total = t.work_secs;
             t.remaining = t.work_secs;
         }
         t.running = true;
+        entered_work
+    };
+    if entered_work {
+        blocker::activate(&app);
     }
     timer::emit_state(&app);
 }
@@ -45,6 +52,7 @@ fn reset_timer(app: AppHandle) {
     live::stop(&app);
     overlay::close_overlays(&app);
     capture::clear(&app);
+    blocker::deactivate(&app);
     {
         let state = app.state::<TimerState>();
         let mut t = state.lock().unwrap();
@@ -96,6 +104,27 @@ fn complete_onboarding(app: AppHandle) {
     config::update(&app, |c| c.onboarded = true);
 }
 
+/// Persist the distraction-blocker settings. If we're mid-focus, re-apply so
+/// the change (e.g. toggling off, or editing lists) takes effect immediately.
+#[tauri::command]
+fn set_blocker_config(
+    app: AppHandle,
+    enabled: bool,
+    sites: Vec<String>,
+    apps: Vec<String>,
+) {
+    config::update(&app, |c| {
+        c.blocker_enabled = enabled;
+        c.blocked_sites = sites;
+        c.blocked_apps = apps;
+    });
+    let in_work = app.state::<TimerState>().lock().unwrap().phase == Phase::Work;
+    if in_work {
+        blocker::deactivate(&app);
+        blocker::activate(&app);
+    }
+}
+
 /// Dev/demo helper: jump straight into a short break to admire the hole.
 #[tauri::command]
 fn test_break(app: AppHandle, secs: Option<u32>) {
@@ -143,7 +172,11 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
             }
             "toggle" => toggle_running(app),
             "skip" => skip_phase(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                // Don't leave a hosts block or app-watch behind after we exit.
+                blocker::deactivate(app);
+                app.exit(0);
+            }
             _ => {}
         })
         .build(app)?;
@@ -164,6 +197,8 @@ pub fn run() {
             test_break,
             get_config,
             complete_onboarding,
+            set_blocker_config,
+            blocker::list_running_apps,
             permissions::check_screen_permission,
             permissions::request_screen_permission,
             permissions::open_screen_settings,
@@ -182,6 +217,10 @@ pub fn run() {
             app.manage(TimerState::new(timer));
             app.manage(capture::Shots::default());
             app.manage(live::Live::default());
+            app.manage(Blocker::default());
+            // Clear any hosts block left behind by a previous crash. Idempotent
+            // and silent (no admin prompt) when there's nothing to remove.
+            blocker::deactivate(app.handle());
             setup_tray(app)?;
             timer::spawn_tick_loop(app.handle().clone());
             Ok(())

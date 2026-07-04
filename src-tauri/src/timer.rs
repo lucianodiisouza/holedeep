@@ -108,6 +108,8 @@ pub fn start_break(app: &AppHandle, secs_override: Option<u32>) {
     }
     crate::overlay::spawn_overlays(app);
     crate::live::start(app, display_ids);
+    // Focus is over for now — lift the distraction block during the break.
+    crate::blocker::deactivate(app);
     emit_state(app);
 }
 
@@ -124,5 +126,7 @@ pub fn end_break(app: &AppHandle) {
     }
     // The captured frames are ~30 MB per monitor; drop them once the hole is gone.
     crate::capture::clear(app);
+    // Back to focus — re-engage the distraction block.
+    crate::blocker::activate(app);
     emit_state(app);
 }

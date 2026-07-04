@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Onboarding from "./Onboarding";
+import Blockers from "./Blockers";
 import "./App.css";
 
 interface Snap {
@@ -38,13 +39,14 @@ function App() {
   const [breakMin, setBreakMin] = useState(5);
   // null = still loading; false = show onboarding; true = show timer.
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  const [showBlockers, setShowBlockers] = useState(false);
 
   useEffect(() => {
-    // Browser demo mode (no Tauri IPC): show onboarding with defaults so the
-    // wizard and timer UI can be iterated on with `npm run dev`, mirroring the
-    // overlay's demo fallback.
+    // Browser demo mode (no Tauri IPC): drop into the timer so the whole UI can
+    // be iterated on with `npm run dev` (onboarding via the setup button,
+    // blockers via its footer button), mirroring the overlay's demo fallback.
     if (!("__TAURI_INTERNALS__" in window)) {
-      setOnboarded(false);
+      setOnboarded(true);
       return;
     }
     let unlisten: (() => void) | undefined;
@@ -159,10 +161,14 @@ function App() {
         <button className="ghost" onClick={() => void invoke("test_break", { secs: 20 })}>
           ☄ preview the black hole (20s)
         </button>
+        <button className="ghost" onClick={() => setShowBlockers(true)}>
+          🚫 distraction blockers
+        </button>
         <button className="ghost" onClick={() => setOnboarded(false)}>
           ⚙ setup &amp; permissions
         </button>
       </footer>
+      {showBlockers && <Blockers onClose={() => setShowBlockers(false)} />}
     </main>
   );
 }
