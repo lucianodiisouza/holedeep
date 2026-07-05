@@ -36,10 +36,41 @@ pub fn spawn_overlays(app: &AppHandle) {
             };
             let _ = win.set_position(PhysicalPosition::new(m.position().x, m.position().y));
             let _ = win.set_size(PhysicalSize::new(m.size().width, m.size().height));
+            #[cfg(target_os = "macos")]
+            cover_shell(&win);
             let _ = win.show();
             let _ = win.set_focus();
         }
     });
+}
+
+/// Lift an overlay above the macOS menu bar and Dock so the hole covers the
+/// whole screen. `always_on_top` only reaches NSFloatingWindowLevel (3), which
+/// the menu bar (24) and Dock (20) render on top of — leaving the real shell
+/// visible next to the copy baked into the captured frame (the "double dock"
+/// artifact). CGShieldingWindowLevel is the level screen savers use to sit over
+/// everything; the collection behavior keeps the window put across Spaces and
+/// alongside full-screen apps.
+#[cfg(target_os = "macos")]
+fn cover_shell(win: &tauri::WebviewWindow) {
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+
+    extern "C" {
+        fn CGShieldingWindowLevel() -> i32;
+    }
+
+    let Ok(ptr) = win.ns_window() else {
+        return;
+    };
+    let ns = ptr as *const NSWindow;
+    unsafe {
+        (*ns).setLevel(CGShieldingWindowLevel() as isize);
+        (*ns).setCollectionBehavior(
+            NSWindowCollectionBehavior::CanJoinAllSpaces
+                | NSWindowCollectionBehavior::FullScreenAuxiliary
+                | NSWindowCollectionBehavior::Stationary,
+        );
+    }
 }
 
 pub fn close_overlays(app: &AppHandle) {

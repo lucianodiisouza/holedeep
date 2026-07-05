@@ -161,7 +161,9 @@ fn start_app_watch(app: &AppHandle, blocked: Vec<String>) {
 }
 
 fn stop_app_watch(app: &AppHandle) {
-    app.state::<Blocker>().running.store(false, Ordering::SeqCst);
+    app.state::<Blocker>()
+        .running
+        .store(false, Ordering::SeqCst);
 }
 
 // --- Public lifecycle --------------------------------------------------------

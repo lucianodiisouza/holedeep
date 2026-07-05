@@ -107,12 +107,7 @@ fn complete_onboarding(app: AppHandle) {
 /// Persist the distraction-blocker settings. If we're mid-focus, re-apply so
 /// the change (e.g. toggling off, or editing lists) takes effect immediately.
 #[tauri::command]
-fn set_blocker_config(
-    app: AppHandle,
-    enabled: bool,
-    sites: Vec<String>,
-    apps: Vec<String>,
-) {
+fn set_blocker_config(app: AppHandle, enabled: bool, sites: Vec<String>, apps: Vec<String>) {
     config::update(&app, |c| {
         c.blocker_enabled = enabled;
         c.blocked_sites = sites;
