@@ -224,7 +224,7 @@ pub fn list_running_apps() -> Vec<AppInfo> {
                 .unwrap_or_else(|| bundle_id.clone());
             out.push(AppInfo { name, bundle_id });
         }
-        out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        out.sort_by_key(|a| a.name.to_lowercase());
         out
     }
     #[cfg(not(target_os = "macos"))]
